@@ -9,11 +9,7 @@ use Dpkg::Deps;
 
 
 
-
-############# Read ENV and ARGV ##############################
-# .................. set NETWORK ...........................
-my $network = $ENV{'NETWORK'};
-
+############# Read ARGV ##########################
 # .................. set repopath ...........................
 my $repopath = $ARGV[0];
 if(-d $repopath){
@@ -24,6 +20,33 @@ if(-d $repopath){
 else{
 	die "no repository";
 }
+# .................. set upstream branch and debian branch ...........................
+my $upstream_branch = $ARGV[1];
+if(defined $upstream_branch && $upstream_branch =~ m/^(.*)$/){
+	$upstream_branch = $1;
+}
+else{
+	$upstream_branch = 'upstream';
+}
+
+my $debian_branch = $ARGV[2];
+if(defined $debian_branch && $debian_branch =~ m/^(.*)$/){
+	$debian_branch = $1;
+}
+else{
+	$debian_branch = 'stable';
+}
+
+
+
+
+############# Read ENV ##############################
+
+
+
+# .................. set NETWORK ...........................
+my $network = $ENV{'NETWORK'};
+
 # .................. set GUI ...........................
 my $guibool = 0;
 if($ENV{'GUI'}){
@@ -70,6 +93,9 @@ my @cmd;
 sub getdependencies {
 	my $curdir = getcwd();
 	chdir($repopath);
+	
+	system('git','checkout',$debian_branch);
+	
 	my $control = Dpkg::Control::Info->new();
 	my $fields = $control->get_source();
 	my $build_depends = deps_parse($fields->{'Build-Depends'});
@@ -97,7 +123,7 @@ sub writerunsh{
 	}
 	else{
 		print $fh qq{
-	exec /src/pkg/run.pl $uid $gid stable upstream
+	exec /src/pkg/run.pl $uid $gid $debian_branch $upstream_branch
 		};
 	}
 	close($fh);
@@ -190,6 +216,8 @@ print $fh 'RUN if [ -z ${proxy+x} ]; then echo "no apt proxy" 1>&2; else echo "A
 print $fh "ADD run.sh /usr/local/bin/run.sh\n";
 print $fh join(' ','RUN','apt-get','update','&&','apt-get','install','-y',@deparray,@basedeps)."\n";
 print $fh "RUN groupadd -g $gid builder && useradd -s /bin/bash -u $uid -g $gid -m builder && chmod +x /usr/local/bin/run.sh\n";
+#print $fh "RUN chown -R builder:builder /src \n";
+print $fh "USER builder \n";
 print $fh 'CMD ["/usr/local/bin/run.sh"]'."\n";
 close($fh);
 
